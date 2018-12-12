@@ -1,0 +1,36 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: "IoT example project"
+
+Parameters:
+  Namespace:
+    Type: String
+    Description: Application name
+
+Resources:
+  Policy:
+    Type: AWS::IoT::Policy
+    Properties:
+      PolicyName: !Sub iot-policy-${Namespace}
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow,
+            Action: iot:Connect,
+            Resource: !Sub arn:aws:iot:${AWS::Region}:${AWS::AccountId}:*
+          - Effect: Allow,
+            Action: iot:Publish,
+            Resource: !Sub arn:aws:iot:${AWS::Region}:${AWS::AccountId}:*
+          - Effect: Allow,
+            Action: iot:Subscribe,
+            Resource: !Sub arn:aws:iot:${AWS::Region}:${AWS::AccountId}:*
+          - Effect: Allow,
+            Action: iot:Receive,
+            Resource: !Sub arn:aws:iot:${AWS::Region}:${AWS::AccountId}:*
+  Thing:
+    Type: AWS::IoT::Thing
+    Properties:
+      ThingName: !Sub iot-thing-${Namespace}
+      AttributePayload:
+        Attributes:
+          type: test
+          
