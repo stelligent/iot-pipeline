@@ -1,0 +1,79 @@
+AWSTemplateFormatVersion: 2010-09-09
+Parameters:
+  RuleName:
+    Description: Enter topic rule name
+    Type: String
+    Default: simulator_rule
+Resources:
+  ElasticsearchDomain:
+    Type: AWS::Elasticsearch::Domain
+    DeletionPolicy: Retain
+    Properties:
+      DomainName: !Sub iot-es-${AWS::Region}
+      ElasticsearchClusterConfig:
+        DedicatedMasterEnabled: false
+        InstanceCount: 1
+        ZoneAwarenessEnabled: false
+        InstanceType: m3.medium.elasticsearch
+      EBSOptions:
+        EBSEnabled: false
+      SnapshotOptions:
+        AutomatedSnapshotStartHour: 0
+      AccessPolicies:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: '*'
+            Action: 'es:*'
+            Resource: '*'
+      AdvancedOptions:
+        rest.action.multi.allow_explicit_index: 'true'
+  AWSESDomainActionPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action: es:ESHttpPut
+            Resource:
+              - !GetAtt ElasticsearchDomain.DomainArn
+  AWSESDomainActionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: iot.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref AWSESDomainActionPolicy
+  AWSIoTRule:
+    Type: AWS::IoT::TopicRule
+    Properties:
+      RuleName: !Ref RuleName
+      TopicRulePayload:
+        Actions:
+          - Elasticsearch:
+              Endpoint: !Join 
+                - ''
+                - - http://
+                  - !GetAtt ElasticsearchDomain.DomainEndpoint
+              Id: ${timestamp()}
+              Index: simulator_index
+              RoleArn: !GetAtt AWSESDomainActionRole.Arn
+              Type: simulator_mapping
+        AwsIotSqlVersion: beta
+        Description: Iot rule for simulation
+        RuleDisabled: false
+        Sql: !Sub SELECT * FROM 'iot/blog/${RuleName}'
+
+Outputs:
+  IOTRuleName:
+    Description: IoT Rule Name used to process rules
+    Value: !Ref RuleName
+    Export:
+      Name: IOTRuleName

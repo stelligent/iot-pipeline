@@ -21,7 +21,9 @@ function createESIndex(params, next) {
     index: indexName
   }, (err, data) => {
     if (err) {
-      if (err.message.indexOf('IndexAlreadyExistsException') > -1) {
+      const indexExists = err.message.indexOf('IndexAlreadyExistsException') > -1
+      console.log('Error creating index: exists', indexExists);
+      if (indexExists) {
         putMapping();
       } else {
         return next(err);

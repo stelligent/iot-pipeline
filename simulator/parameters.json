@@ -1,15 +1,7 @@
 [
   {
-    "ParameterKey": "S3BucketName",
-    "ParameterValue": "iot-simulator-neil-us-west-2-324320755747"
-  },
-  {
     "ParameterKey": "SrcCodeBucket",
-    "ParameterValue": "iot-us-west-2-simulator-publicbucket"
-  },
-  {
-    "ParameterKey": "RuleName",
-    "ParameterValue": "simulator_rule"
+    "ParameterValue": "cfnctl-staging-bucket"
   },
   {
     "ParameterKey": "FunctionName",

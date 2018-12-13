@@ -1,23 +1,15 @@
 AWSTemplateFormatVersion: 2010-09-09
 Parameters:
-  S3BucketName:
-    Description: Enter S3 bucket name you are about to create
-    Type: String
   SrcCodeBucket:
     Description: Enter the S3 bucket storing the source code
     Type: String
-    Default: iot-us-west-2-simulator-publicbucket
-  RuleName:
-    Description: Enter topic rule name
-    Type: String
-    Default: simulator_rule
   FunctionName:
     Description: Lambda Function Name
     Type: String
     Default: iot-simulator
 Resources:
   AWSRolePolicy:
-    Type: 'AWS::IAM::ManagedPolicy'
+    Type: AWS::IAM::ManagedPolicy
     Properties:
       PolicyDocument:
         Version: 2012-10-17
@@ -34,10 +26,7 @@ Resources:
           - Action:
               - 's3:getObject'
             Resource:
-              - 'arn:aws:s3:::iot-simulator-publicbucket/*'
-              - !Sub 'arn:aws:s3:::${SrcCodeBucket}/*'
-              - 'arn:aws:s3:::awsiot.simulator.publicbucket/*'
-              - !Sub arn:aws:s3:::${S3BucketName}/*
+              - !Sub 'arn:aws:s3:::${SrcCodeBucket}-${AWS::Region}-${AWS::AccountId}/*'
             Effect: Allow
           - Action:
               - 'iam:createPolicy'
@@ -48,97 +37,30 @@ Resources:
             Effect: Allow
             Resource: '*'
   AWSLambdaRole:
-    Type: 'AWS::IAM::Role'
+    Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
         Version: 2012-10-17
         Statement:
-          - Sid: ''
-            Effect: Allow
+          - Effect: Allow
             Principal:
               Service: lambda.amazonaws.com
-            Action: 'sts:AssumeRole'
+            Action: sts:AssumeRole
       ManagedPolicyArns:
         - !Ref AWSRolePolicy
   AWSLambda:
-    Type: 'AWS::Lambda::Function'
+    Type: AWS::Lambda::Function
     Properties:
+      Environment:
+        Variables:
+          BUCKET_NAME: !Sub ${SrcCodeBucket}-${AWS::Region}-${AWS::AccountId}
+          OBJECT_KEY: lambda/data.csv
+          RULE_NAME: !ImportValue IOTRuleName
       FunctionName: !Ref FunctionName
       Code:
-        S3Bucket: !Ref SrcCodeBucket
-        S3Key: index.zip
-      Handler: index.handler
+        S3Bucket: !Sub ${SrcCodeBucket}-${AWS::Region}-${AWS::AccountId}
+        S3Key: lambda/src.zip
+      Handler: src/index.handler
       Role: !GetAtt AWSLambdaRole.Arn
-      Runtime: nodejs4.3
+      Runtime: nodejs8.10
       Timeout: 60
-  MyS3Bucket:
-    Type: 'AWS::S3::Bucket'
-    Properties:
-      BucketName: !Ref S3BucketName
-  ElasticsearchDomain:
-    Type: 'AWS::Elasticsearch::Domain'
-    DeletionPolicy: Retain
-    Properties:
-      ElasticsearchClusterConfig:
-        DedicatedMasterEnabled: false
-        InstanceCount: 1
-        ZoneAwarenessEnabled: false
-        InstanceType: m3.medium.elasticsearch
-      EBSOptions:
-        EBSEnabled: false
-      SnapshotOptions:
-        AutomatedSnapshotStartHour: 0
-      AccessPolicies:
-        Version: 2012-10-17
-        Statement:
-          - Effect: Allow
-            Principal:
-              AWS: '*'
-            Action: 'es:*'
-            Resource: '*'
-      AdvancedOptions:
-        rest.action.multi.allow_explicit_index: 'true'
-  AWSESDomainActionPolicy:
-    Type: 'AWS::IAM::ManagedPolicy'
-    Properties:
-      PolicyDocument:
-        Version: 2012-10-17
-        Statement:
-          - Effect: Allow
-            Action: 'es:ESHttpPut'
-            Resource:
-              - 'arn:aws:es:*:*:*'
-  AWSESDomainActionRole:
-    Type: 'AWS::IAM::Role'
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: 2012-10-17
-        Statement:
-          - Sid: ''
-            Effect: Allow
-            Principal:
-              Service: iot.amazonaws.com
-            Action: 'sts:AssumeRole'
-      ManagedPolicyArns:
-        - !Ref AWSESDomainActionPolicy
-  AWSIoTRule:
-    Type: 'AWS::IoT::TopicRule'
-    Properties:
-      RuleName: !Ref RuleName
-      TopicRulePayload:
-        Actions:
-          - Elasticsearch:
-              Endpoint: !Join 
-                - ''
-                - - 'http://'
-                  - !GetAtt ElasticsearchDomain.DomainEndpoint
-              Id: '${timestamp()}'
-              Index: simulator_index
-              RoleArn: !GetAtt 
-                - AWSESDomainActionRole
-                - Arn
-              Type: simulator_mapping
-        AwsIotSqlVersion: beta
-        Description: Iot rule for simulation
-        RuleDisabled: false
-        Sql: !Sub SELECT * FROM 'iot/blog/${RuleName}'

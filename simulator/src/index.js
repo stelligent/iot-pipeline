@@ -1,10 +1,12 @@
 const mqtt = require('./mqtt-lib.js');
 const createIndex = require('./createIndex.js');
 const AWS = require('aws-sdk');
+const fs = require('fs');
+const path = require('path');
 
-const bucketName = 'iot-us-west-2-simulator-publicbucket';
-const objectKey = 'physiological-data.csv';
-const ruleName = 'simulator_rule';
+// const bucketName = 'iot-us-west-2-simulator-publicbucket';
+// const objectKey = 'physiological-data.csv';
+// const ruleName = 'simulator_rule';
 
 let event;
 let context;
@@ -14,9 +16,9 @@ exports.handler = (eventParams, contextParams) => {
   event = eventParams;
   context = contextParams;
 
-  event.bucketName = event.bucketName ? event.bucketName : bucketName;
-  event.key = event.key ? event.key : objectKey;
-  event.ruleName = event.ruleName ? event.ruleName : ruleName;
+  event.bucketName = event.bucketName || process.env.BUCKET_NAME;
+  event.key = event.key || process.env.OBJECT_KEY;
+  event.ruleName = event.ruleName || process.env.RULE_NAME;
   event.region = event.region ? event.region : process.env.AWS_REGION;
   event.accessKey = process.env.AWS_ACCESS_KEY_ID;
   event.secretKey = process.env.AWS_SECRET_ACCESS_KEY;
@@ -39,20 +41,23 @@ function runSimulator(err, params) {
 
   event.index = params.index;
 
-  const s3 = new AWS.S3({
-    region: 'us-west-2'
-  });
+  const s3 = new AWS.S3();
 
   var bucket = event.bucketName;
   var key = decodeURIComponent(event.key).replace(/\+/g, " ");
-
+  console.log('reading dataset from', bucket, '/', key);
   s3.getObject({
     Bucket: bucket,
     Key: key
   }, (err, data) => {
     if (err) {
-      context.fail("Failed to read dataset");
-      return;
+      console.log(err);
+      console.log('Reading local dataset');
+      data = {
+        Body: fs.readFileSync(path.resolve(__dirname, 'data.csv'), 'utf8'),
+      };
+      // context.fail("Failed to read dataset");
+      // return;
     }
 
     event.data = data.Body.toString();      // attach file content to event
