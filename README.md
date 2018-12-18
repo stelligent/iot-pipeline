@@ -39,3 +39,7 @@ Create a test event in the simulator lambda
   "numDevice": 3
 }
 ```
+
+endpoint: azfy710l5pbus.iot.us-west-2.amazonaws.com
+cert: 821c1177cc.cert.pem
+thing: nxp-lpc54018-dev 
