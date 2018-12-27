@@ -1,0 +1,255 @@
+Description: NXP LPC54018 IoT Module Build Pipeline 
+AWSTemplateFormatVersion: '2010-09-09'
+
+# Parameters:
+#   GitHubRepoOwner:
+#     Description: Github repository owner
+#     Type: String
+#   GitHubRepo: 
+#     Description: Github repository name
+#     Type: String
+#   GitHubToken:
+#     Description: Github access token for codepipeline build access
+#     Type: String
+#     NoEcho: true
+
+Resources:
+  PipelineArtifactS3Bucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    Properties:
+      VersioningConfiguration:
+        Status: Enabled
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          -
+            ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+  PipelineS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub nxp-lpc54018-iot-module-${AWS::AccountId}-${AWS::Region}
+      VersioningConfiguration:
+        Status: Enabled
+  CodePipelineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: CodePipelineRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          -
+            Effect: Allow
+            Principal:
+              Service:
+                - codepipeline.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      Policies:
+        -
+          PolicyName: NXP-LPC54018-IoT-Module-CodePipeline-Policy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              -
+                Effect: Allow
+                Action:
+                  - 's3:GetBucketVersioning'
+                Resource: 
+                  - !Sub arn:aws:s3:::${PipelineArtifactS3Bucket}
+                  - !Sub arn:aws:s3:::${PipelineS3Bucket}
+              -
+                Effect: Allow
+                Action:
+                  - 's3:PutObject'
+                  - 's3:GetObject'
+                  - 's3:GetObjectVersion'
+                Resource:
+                  - !Sub arn:aws:s3:::${PipelineArtifactS3Bucket}/*
+                  - !Sub arn:aws:s3:::${PipelineS3Bucket}/*
+              -
+                Effect: Allow
+                Action:
+                  - 'codebuild:BatchGetBuilds'
+                  - 'codebuild:StartBuild'
+                Resource: !Sub arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:project/${CodeBuild}
+              -
+                Effect: Allow
+                Action:
+                  - 'lambda:ListFunctions'
+                  - 'lambda:ListVersionsByFunction'
+                Resource: '*'
+  CodePipeline:
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      Name: NXP-LPC54018-IoT-Module-CodePipeline
+      RoleArn: !GetAtt CodePipelineRole.Arn
+      ArtifactStore:
+        Location: !Ref PipelineArtifactS3Bucket
+        Type: S3
+      Stages:
+        -
+          Name: Source
+          Actions:
+            -
+              ActionTypeId:
+                Category: Source
+                Owner: AWS
+                Provider: S3
+                Version: '1'
+              Configuration:
+                S3Bucket : !Ref PipelineS3Bucket
+                PollForSourceChanges : True
+                S3ObjectKey : iot-module.zip
+              InputArtifacts: []
+              Name: S3Source
+              OutputArtifacts:
+                -
+                  Name: SourceApp
+              RunOrder: 1
+            # -
+            #   ActionTypeId:
+            #     Category: Source
+            #     Owner: ThirdParty
+            #     Provider: GitHub
+            #     Version: '1'
+            #   Configuration:
+            #     Owner: !Ref GitHubRepoOwner
+            #     Repo: !Ref GitHubRepo
+            #     Branch: master
+            #     OAuthToken: !Ref GitHubToken
+            #     PollForSourceChanges: true
+            #   InputArtifacts: []
+            #   Name: GitHubSource
+            #   OutputArtifacts:
+            #     -
+            #       Name: SourceApp
+            #   RunOrder: 1
+        -
+          Name: Build
+          Actions:
+            -
+              Name: CodeBuild
+              InputArtifacts:
+                -
+                  Name: SourceApp
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Version: '1'
+                Provider: CodeBuild
+              OutputArtifacts:
+                -
+                  Name: BuiltApp
+              Configuration:
+                ProjectName:
+                  Ref: CodeBuild
+  CodeBuildRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          -
+            Effect: Allow
+            Principal:
+              Service:
+                - codebuild.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      Policies:
+        -
+          PolicyName: NXP-LPC54018-IoT-Module-CodeBuild-Policy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              -
+                Effect: Allow
+                Action:
+                  - 'logs:CreateLogGroup'
+                  - 'logs:CreateLogStream'
+                  - 'logs:PutLogEvents'
+                Resource:
+                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/*
+              -
+                Effect: Allow
+                Action:
+                  - 's3:PutObject'
+                  - 's3:GetObject'
+                  - 's3:GetObjectVersion'
+                  - 's3:DeleteObject'
+                Resource:
+                  - !Sub arn:aws:s3:::${PipelineArtifactS3Bucket}/*
+              -
+                Effect: Allow
+                Action:
+                  - 'cloudformation:ValidateTemplate'
+                Resource: '*'
+
+  CodeBuild:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: NXP-LPC54018-IoT-Module-CodeBuild
+      ServiceRole: !GetAtt CodeBuildRole.Arn
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: |
+          version: 0.2
+          phases:
+            install:
+              commands:
+                - echo Nothing to do in the install phase...
+            pre_build:
+              commands:
+                - echo Nothing to do in the pre_build phase...
+            build:
+              commands:
+                - echo Build started on `date`
+                - /usr/local/mcuxpressoide/ide/mcuxpressoide -nosplash --launcher.suppressErrors -application org.eclipse.cdt.managedbuilder.core.headlessbuild -data /work -import /work/demos/nxp/lpc54018iotmodule/mcuxpresso -build aws_demos/Release
+            post_build:
+              commands:
+                - echo Build completed on `date`
+          artifacts:
+            files:
+              - '**/*'
+      Environment:
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ContainerRegistry}:latest
+        Type: LINUX_CONTAINER
+        EnvironmentVariables:
+          -
+            Name: ARTIFACT_BUCKET
+            Value:
+              Ref: PipelineArtifactS3Bucket
+      Artifacts:
+        Name: !Sub ${PipelineArtifactS3Bucket}-Built
+        Type: CODEPIPELINE
+  ContainerRegistry:
+    Type: AWS::ECR::Repository
+    Properties: 
+      RepositoryName: nxp-lpc54018-iot-module
+      RepositoryPolicyText: |
+        {
+          "Version": "2012-10-17",
+          "Statement": [{
+            "Effect": "Allow",
+            "Principal": {
+              "AWS": [
+                "arn:aws:iam::570169269855:root",
+                "arn:aws:iam::201349592320:root",
+                "arn:aws:iam::964771811575:root"
+              ]
+            },
+            "Action": [
+              "ecr:GetDownloadUrlForLayer",
+              "ecr:BatchGetImage",
+              "ecr:DescribeImages",
+              "ecr:DescribeRepositories",
+              "ecr:ListImages",
+              "ecr:BatchCheckLayerAvailability",
+              "ecr:GetRepositoryPolicy"
+            ]
+          }]
+        }
