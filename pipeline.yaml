@@ -1,18 +1,20 @@
 Description: NXP LPC54018 IoT Module Build Pipeline 
 AWSTemplateFormatVersion: '2010-09-09'
 
-# Parameters:
-#   GitHubRepoOwner:
-#     Description: Github repository owner
-#     Type: String
-#   GitHubRepo: 
-#     Description: Github repository name
-#     Type: String
-#   GitHubToken:
-#     Description: Github access token for codepipeline build access
-#     Type: String
-#     NoEcho: true
-
+#
+# Uncomment these parameters if you are using the GitHub Source
+#
+#Parameters:
+  # GitHubRepoOwner:
+  #   Description: Github repository owner
+  #   Type: String
+  # GitHubRepo: 
+  #   Description: Github repository name
+  #   Type: String
+  # GitHubToken:
+  #   Description: Github access token for codepipeline build access
+  #   Type: String
+  #   NoEcho: true
 Resources:
   PipelineArtifactS3Bucket:
     Type: AWS::S3::Bucket
@@ -25,12 +27,20 @@ Resources:
           -
             ServerSideEncryptionByDefault:
               SSEAlgorithm: AES256
-  PipelineS3Bucket:
-    Type: AWS::S3::Bucket
-    Properties:
-      BucketName: !Sub nxp-lpc54018-iot-module-${AWS::AccountId}-${AWS::Region}
-      VersioningConfiguration:
-        Status: Enabled
+  #
+  # Uncomment to use S3 as your pipeline source
+  #
+  # PipelineS3Bucket:
+  #   Type: AWS::S3::Bucket
+  #   Properties:
+  #     BucketName: !Sub nxp-lpc54018-iot-module-${AWS::AccountId}-${AWS::Region}
+  #     VersioningConfiguration:
+  #       Status: Enabled
+  PipelineCodeCommit:
+    Type: AWS::CodeCommit::Repository
+    Properties: 
+      RepositoryDescription: NXP LPC54018 IoT Module Source
+      RepositoryName: nxp-lpc54018-iot-module
   CodePipelineRole:
     Type: AWS::IAM::Role
     Properties:
@@ -58,7 +68,6 @@ Resources:
                   - 's3:GetBucketVersioning'
                 Resource: 
                   - !Sub arn:aws:s3:::${PipelineArtifactS3Bucket}
-                  - !Sub arn:aws:s3:::${PipelineS3Bucket}
               -
                 Effect: Allow
                 Action:
@@ -67,7 +76,16 @@ Resources:
                   - 's3:GetObjectVersion'
                 Resource:
                   - !Sub arn:aws:s3:::${PipelineArtifactS3Bucket}/*
-                  - !Sub arn:aws:s3:::${PipelineS3Bucket}/*
+              #
+              # Uncomment to use S3 as your pipeline source
+              #
+              # -
+              #   Effect: Allow
+              #   Action:
+              #     - 's3:GetObject'
+              #     - 's3:GetObjectVersion'
+              #   Resource:
+              #     - !Sub arn:aws:s3:::${PipelineS3Bucket}/*
               -
                 Effect: Allow
                 Action:
@@ -96,18 +114,21 @@ Resources:
               ActionTypeId:
                 Category: Source
                 Owner: AWS
-                Provider: S3
+                Provider: CodeCommit
                 Version: '1'
               Configuration:
-                S3Bucket : !Ref PipelineS3Bucket
-                PollForSourceChanges : True
-                S3ObjectKey : iot-module.zip
+                BranchName: master
+                RepositoryName: !GetAtt PipelineCodeCommit.Name
+                PollForSourceChanges: true
               InputArtifacts: []
-              Name: S3Source
+              Name: CodeCommitSource
               OutputArtifacts:
                 -
                   Name: SourceApp
               RunOrder: 1
+            #
+            # Uncomment to use GitHub as your source
+            # Comment out any other source actions
             # -
             #   ActionTypeId:
             #     Category: Source
@@ -126,6 +147,27 @@ Resources:
             #     -
             #       Name: SourceApp
             #   RunOrder: 1
+            # End Uncomment to use GitHub as your source
+            #
+            # Uncomment to use S3 as your source
+            # Comment out any other source actions
+            # -
+            #   ActionTypeId:
+            #     Category: Source
+            #     Owner: AWS
+            #     Provider: S3
+            #     Version: '1'
+            #   Configuration:
+            #     S3Bucket : !Ref PipelineS3Bucket
+            #     PollForSourceChanges : True
+            #     S3ObjectKey : iot-module.zip
+            #   InputArtifacts: []
+            #   Name: S3Source
+            #   OutputArtifacts:
+            #     -
+            #       Name: SourceApp
+            #   RunOrder: 1
+            # End Uncomment to use S3 as your source
         -
           Name: Build
           Actions:
@@ -253,3 +295,10 @@ Resources:
             ]
           }]
         }
+
+Outputs:
+  ECRImageName:
+    Description: ECR Image URL and Name
+    Value: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ContainerRegistry}
+    Export:
+      Name: ECRImageName
