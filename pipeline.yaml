@@ -142,9 +142,6 @@ Resources:
                       Name: SourceApp
                   RunOrder: 1
                 - !Ref AWS::NoValue
-            #
-            # Uncomment to use GitHub as your source
-            # Comment out any other source actions
             - !If
                 - IsGitHubSource
                 - ActionTypeId:
@@ -165,10 +162,6 @@ Resources:
                       Name: SourceApp
                   RunOrder: 1
                 - !Ref AWS::NoValue
-            # End Uncomment to use GitHub as your source
-            #
-            # Uncomment to use S3 as your source
-            # Comment out any other source actions
             - !If
               - IsS3Source
               - ActionTypeId:
@@ -187,7 +180,6 @@ Resources:
                     Name: SourceApp
                 RunOrder: 1
               - !Ref AWS::NoValue
-            # End Uncomment to use S3 as your source
         -
           Name: Build
           Actions:
