@@ -53,6 +53,7 @@ Resources:
         Status: Enabled
   PipelineCodeCommit:
     Type: AWS::CodeCommit::Repository
+    Condition: IsCodeCommitSource
     Properties: 
       RepositoryDescription: NXP LPC54018 IoT Module Source
       RepositoryName: nxp-lpc54018-iot-module
@@ -91,15 +92,6 @@ Resources:
                   - 's3:GetObjectVersion'
                 Resource:
                   - !Sub arn:aws:s3:::${PipelineArtifactS3Bucket}/*
-              - !If
-                  - IsS3Source
-                  - Effect: Allow
-                    Action:
-                      - 's3:GetObject'
-                      - 's3:GetObjectVersion'
-                    Resource:
-                      - !Sub arn:aws:s3:::${PipelineS3Bucket}/*
-                  - !Ref AWS::NoValue
               -
                 Effect: Allow
                 Action:
@@ -112,6 +104,27 @@ Resources:
                   - 'lambda:ListFunctions'
                   - 'lambda:ListVersionsByFunction'
                 Resource: '*'
+              - !If
+                  - IsS3Source
+                  - Effect: Allow
+                    Action:
+                      - 's3:GetObject'
+                      - 's3:GetObjectVersion'
+                    Resource:
+                      - !Sub arn:aws:s3:::${PipelineS3Bucket}/*
+                  - !Ref AWS::NoValue
+              - !If
+                  - IsCodeCommitSource
+                  - Effect: Allow
+                    Action:
+                      - 'codecommit:GetBranch'
+                      - 'codecommit:GetCommit'
+                      - 'codecommit:UploadArchive'
+                      - 'codecommit:GetUploadArchiveStatus'
+                      - 'codecommit:CancelUploadArchive'
+                    Resource:
+                      - !Sub arn:aws:codecommit:${AWS::Region}:${AWS::AccountId}:${PipelineCodeCommit.Name}
+                  - !Ref AWS::NoValue
   CodePipeline:
     Type: AWS::CodePipeline::Pipeline
     Properties:
@@ -261,7 +274,7 @@ Resources:
             build:
               commands:
                 - echo Build started on `date`
-                - /usr/local/mcuxpressoide/ide/mcuxpressoide -nosplash --launcher.suppressErrors -application org.eclipse.cdt.managedbuilder.core.headlessbuild -data /work -import /work/demos/nxp/lpc54018iotmodule/mcuxpresso -build aws_demos/Release
+                - /usr/local/mcuxpressoide/ide/mcuxpressoide -nosplash --launcher.suppressErrors -application org.eclipse.cdt.managedbuilder.core.headlessbuild -data ${CODEBUILD_SRC_DIR} -import ${CODEBUILD_SRC_DIR}/demos/nxp/lpc54018iotmodule/mcuxpresso -build aws_demos/Release
             post_build:
               commands:
                 - echo Build completed on `date`
