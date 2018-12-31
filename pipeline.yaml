@@ -280,7 +280,7 @@ Resources:
                 - echo Build completed on `date`
           artifacts:
             files:
-              - '**/*'
+              - 'demos/nxp/lpc54018iotmodule/mcuxpresso/Release/**/*'
       Environment:
         ComputeType: BUILD_GENERAL1_SMALL
         Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ContainerRegistry}:latest
