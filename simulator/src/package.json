@@ -6,7 +6,7 @@
   "author": "Tingtao Xu <tingtaox@amazon.com>",
   "license": "MIT",
   "dependencies": {
-    "aws-sdk": "^2.3.9",
+    "aws-sdk": "^2.814.0",
     "crypto-js": "^3.1.6",
     "elasticsearch": "^15.2.0",
     "moment": "^2.13.0",
